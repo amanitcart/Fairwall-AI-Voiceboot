@@ -1,0 +1,8 @@
+ai-voice-bot/
+│
+├── setup.py
+├── requirements.txt
+├── voice_system_check.py
+├── firewall_check.py
+├── main.py
+└── README.md
