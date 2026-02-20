@@ -1,0 +1,11 @@
+import voice_system_check
+import firewall_check
+import main
+
+print("===== Fairwall AI Voice Bot System Check =====")
+
+voice_system_check.check_and_install()
+firewall_check.check_firewall()
+
+print("Running Voice Test...")
+main.test_tts()
