@@ -1,0 +1,84 @@
+name: Fairwall AI Voice Bot Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  APP_NAME: ai-voice-bot
+  PYTHON_VERSION: "3.10"
+
+jobs:
+
+  gate-check:
+    name: 🔎 System Gate Verification
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Check & Install Dependencies
+        run: |
+          echo "Checking dependencies..."
+          python voice_system_check.py
+
+      - name: Verify TTS/STT Import Gate
+        run: |
+          python - <<EOF
+          import pyttsx3
+          import speech_recognition
+          print("TTS & STT verified ✅")
+          EOF
+
+      - name: Firewall Gate (Linux UFW simulation)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ufw
+          sudo ufw allow 5000 || true
+          sudo ufw status
+
+  build:
+    name: 🏗 Build Stage
+    needs: gate-check
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker Image
+        run: |
+          docker build -t $APP_NAME:latest .
+
+      - name: Verify Docker Image
+        run: |
+          docker images | grep $APP_NAME
+
+  deploy:
+    name: 🚀 Deploy Stage
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Container
+        run: |
+          docker run -d -p 5000:5000 --name ai_voice_bot $APP_NAME:latest
+
+      - name: Deployment Verification
+        run: |
+          docker ps | grep ai_voice_bot
+          echo "Deployment Successful 🎉"
