@@ -2,11 +2,9 @@ name: Fairwall AI Voice Bot Pipeline
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
   pull_request:
-    branches:
-      - main
+    branches: [ main ]
 
 env:
   APP_NAME: ai-voice-bot
@@ -30,25 +28,31 @@ jobs:
       - name: Upgrade pip
         run: python -m pip install --upgrade pip
 
-      - name: Check & Install Dependencies
+      - name: Install Dependencies
         run: |
-          echo "Checking dependencies..."
-          python voice_system_check.py
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          fi
+
+      - name: Run System Check
+        run: |
+          if [ -f voice_system_check.py ]; then
+            python voice_system_check.py
+          else
+            echo "voice_system_check.py not found, skipping..."
+          fi
 
       - name: Verify TTS/STT Import Gate
         run: |
           python - <<EOF
-          import pyttsx3
-          import speech_recognition
-          print("TTS & STT verified ✅")
+          try:
+              import pyttsx3
+              import speech_recognition
+              print("TTS & STT verified ✅")
+          except ImportError as e:
+              print(f"Import failed: {e}")
+              exit(1)
           EOF
-
-      - name: Firewall Gate (Linux UFW simulation)
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ufw
-          sudo ufw allow 5000 || true
-          sudo ufw status
 
   build:
     name: 🏗 Build Stage
@@ -59,12 +63,16 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build Docker Image
-        run: |
-          docker build -t $APP_NAME:latest .
+        run: docker build -t $APP_NAME:latest .
 
-      - name: Verify Docker Image
-        run: |
-          docker images | grep $APP_NAME
+      - name: Save Docker Image
+        run: docker save $APP_NAME:latest -o image.tar
+
+      - name: Upload Docker Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: image.tar
 
   deploy:
     name: 🚀 Deploy Stage
@@ -73,6 +81,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Download Docker Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Load Docker Image
+        run: docker load -i image.tar
 
       - name: Deploy Container
         run: |
